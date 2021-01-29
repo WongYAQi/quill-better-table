@@ -1,9 +1,11 @@
 import Quill from "quill"
-import { getRelativeRect } from '../utils'
+import { getRelativeRect, css } from '../utils'
 import Header from './header'
 
 const Break = Quill.import("blots/break")
 const Block = Quill.import("blots/block")
+const Inline = Quill.import('blots/inline')
+const List = Quill.import('formats/list')
 const Container = Quill.import("blots/container")
 
 const COL_ATTRIBUTES = ["width"]
@@ -18,6 +20,44 @@ const CELL_DEFAULT = {
 }
 const ERROR_LIMIT = 5
 
+class TableCellLineHolder extends Inline{
+  static create (value) {
+    const node = super.create(value)
+    // node.classList.add('qlbt-cell-line-holder')
+    css(node, {
+      position: 'absolute',
+      display: 'inline-block',
+      top: '0',
+      bottom: '0',
+      right: '-1px',
+      width: '1px',
+      cursor: 'ew-resize'
+    })
+    CELL_IDENTITY_KEYS.forEach(key => {
+      let identityMaker = key === 'row'
+        ? rowId : cellId
+      node.setAttribute(`data-${key}`, value[key] || identityMaker())
+    })
+
+    CELL_ATTRIBUTES.forEach(attrName => {
+      node.setAttribute(`data-${attrName}`, value[attrName] || CELL_DEFAULT[attrName])
+    })
+
+    if (value['cell-bg']) {
+      node.setAttribute('data-cell-bg', value['cell-bg'])
+    }
+
+    return node
+  }
+  optimize (content) {
+    super.optimize(content)
+  }
+}
+TableCellLineHolder.blotName = 'table-cell-line-holder'
+TableCellLineHolder.className = 'qlbt-cell-line-holder'
+TableCellLineHolder.tagName = 'span'
+
+// 一行？不是，这就是一个单元格
 class TableCellLine extends Block {
   static create(value) {
     const node = super.create(value)
@@ -108,11 +148,13 @@ TableCellLine.tagName = "P"
 class TableCell extends Container {
   checkMerge() {
     if (super.checkMerge() && this.next.children.head != null) {
-      const thisHead = this.children.head.formats()[this.children.head.statics.blotName]
-      const thisTail = this.children.tail.formats()[this.children.tail.statics.blotName]
-      const nextHead = this.next.children.head.formats()[this.next.children.head.statics.blotName]
-      const nextTail = this.next.children.tail.formats()[this.next.children.tail.statics.blotName]
+      const f = (blot, blotName) => blot.formats ? blot.formats()[blotName] : undefined
+      const thisHead = f(this.children.head, this.children.head.statics.blotName)
+      const thisTail = f(this.children.tail, this.children.tail.statics.blotName)
+      const nextHead = f(this.next.children.head, this.next.children.head.statics.blotName)
+      const nextTail = f(this.next.children.tail, this.next.children.tail.statics.blotName)
       return (
+        thisHead && thisTail && nextHead && nextTail && 
         thisHead.cell === thisTail.cell &&
         thisHead.cell === nextHead.cell &&
         thisHead.cell === nextTail.cell
@@ -124,7 +166,9 @@ class TableCell extends Container {
   static create(value) {
     const node = super.create(value)
     node.setAttribute("data-row", value.row)
-
+    // css(node, {
+    //   position: 'relative'
+    // })
     CELL_ATTRIBUTES.forEach(attrName => {
       if (value[attrName]) {
         node.setAttribute(attrName, value[attrName])
@@ -135,7 +179,8 @@ class TableCell extends Container {
       node.setAttribute('data-cell-bg', value['cell-bg'])
       node.style.backgroundColor = value['cell-bg']
     }
-
+    // const holderDom = TableCellLineHolder.create(value)
+    // node.appendChild(holderDom)
     return node
   }
 
@@ -892,8 +937,9 @@ TableRow.requiredContainer = TableBody
 TableRow.allowedChildren = [TableCell]
 TableCell.requiredContainer = TableRow
 
-TableCell.allowedChildren = [TableCellLine, Header]
+TableCell.allowedChildren = [TableCellLine, Header, Block, TableCellLineHolder, List.requiredContainer]
 TableCellLine.requiredContainer = TableCell
+TableCellLineHolder.requiredContainer = TableCell
 
 TableColGroup.allowedChildren = [TableCol]
 TableColGroup.requiredContainer = TableContainer
@@ -920,12 +966,12 @@ export {
   TableCol,
   TableColGroup,
   TableCellLine,
+  TableCellLineHolder,
   TableCell,
   TableRow,
   TableBody,
   TableContainer,
   TableViewWrapper,
-
   // identity getters
   rowId,
   cellId,

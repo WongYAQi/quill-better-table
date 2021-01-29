@@ -19,6 +19,7 @@ import {
   TableCol,
   TableColGroup,
   TableCellLine,
+  TableCellLineHolder,
   TableCell,
   TableRow,
   TableBody,
@@ -33,6 +34,7 @@ class BetterTable extends Module {
     Quill.register(TableCol, true);
     Quill.register(TableColGroup, true);
     Quill.register(TableCellLine, true);
+    Quill.register(TableCellLineHolder, true);
     Quill.register(TableCell, true);
     Quill.register(TableRow, true);
     Quill.register(TableBody, true);
